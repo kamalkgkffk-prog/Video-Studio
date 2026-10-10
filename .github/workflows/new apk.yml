@@ -19,10 +19,27 @@ jobs:
         with:
           gradle-version: 8.7
 
+      # Depo kökündeki zip'i bulup açar (telefonda klasör yüklemek gerekmesin diye)
+      - name: Projeyi hazırla
+        run: |
+          ZIP=$(ls ./*.zip 2>/dev/null | head -1 || true)
+          if [ -n "$ZIP" ]; then
+            echo "Zip bulundu: $ZIP"
+            mkdir -p proje
+            unzip -q -o "$ZIP" -d proje
+            DIR=$(dirname "$(find proje -name settings.gradle.kts | head -1)")
+          else
+            echo "Zip yok, depo kökü kullanılıyor"
+            DIR=.
+          fi
+          echo "Proje klasörü: $DIR"
+          ls -la "$DIR"
+          echo "DIR=$DIR" >> "$GITHUB_ENV"
+
       - name: APK derle
         run: |
           set -o pipefail
-          gradle assembleDebug --no-daemon 2>&1 | tee build.log
+          gradle -p "$DIR" assembleDebug --no-daemon 2>&1 | tee build.log
 
       - name: Hata özeti (başarısız olursa)
         if: failure()
@@ -30,7 +47,7 @@ jobs:
           {
             echo '## Derleme hataları'
             echo '```'
-            grep -nE "^e: |error:|What went wrong|Could not resolve|Execution failed|Unresolved" -A3 build.log | head -80
+            grep -nE "^e: |error:|What went wrong|Could not resolve|Execution failed|Unresolved|Where:" -A3 build.log | head -80 || true
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -39,4 +56,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: VideoIndirici-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
+          path: ${{ env.DIR }}/app/build/outputs/apk/debug/app-debug.apk
